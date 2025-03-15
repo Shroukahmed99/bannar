@@ -19,7 +19,6 @@ class _HomeScreenState extends State<HomeScreen>
   final AdManager _adManager = AdManager();
 
   // في ملف home_screen.dart
-
   @override
   void initState() {
     super.initState();
@@ -36,13 +35,20 @@ class _HomeScreenState extends State<HomeScreen>
     // تهيئة الإعلانات
     _adManager.initialize();
 
-    // إعادة بناء الواجهة عند تحميل الإعلانات
+    // إعادة محاولة تحميل الإعلانات
+    Future.delayed(Duration(seconds: 3), () {
+      if (!_adManager.isBannerAdLoaded) {
+        _adManager.loadBannerAd();
+      }
+    });
+
+    // إعادة بناء الواجهة لتحديث عرض الإعلانات
     Future.delayed(Duration(seconds: 2), () {
       if (mounted) setState(() {});
     });
 
     // عرض الإعلان البيني بعد فترة من بدء التطبيق
-    Future.delayed(Duration(seconds: 1), () {
+    Future.delayed(Duration(seconds: 5), () {
       _adManager.showInterstitialAd();
     });
   }
@@ -128,45 +134,48 @@ class _HomeScreenState extends State<HomeScreen>
   // في ملف home_screen.dart
 
   Widget _buildBannerAdContainer() {
-  return StatefulBuilder(
-    builder: (context, setState) {
-      // تحديث الواجهة بشكل دوري للتحقق من تحميل الإعلان
-      Future.delayed(Duration(seconds: 3), () {
-        if (mounted) setState(() {});
-      });
-      
-      // عرض الإعلان إذا كان جاهزاً
-      if (_adManager.isBannerAdLoaded && _adManager.bannerAd != null) {
-        return Container(
-          alignment: Alignment.center,
-          width: _adManager.bannerAd!.size.width.toDouble(),
-          height: _adManager.bannerAd!.size.height.toDouble(),
-          margin: EdgeInsets.symmetric(vertical: 10),
-          child: AdWidget(ad: _adManager.bannerAd!),
-        );
-      } else {
-        // عند عدم جاهزية الإعلان، محاولة إعادة التحميل
-        Future.delayed(Duration(seconds: 5), () {
-          // إعادة تحميل الإعلان إذا لم يكن محملاً
-          if (!_adManager.isBannerAdLoaded) {
-            _adManager.loadBannerAd();
+    return StatefulBuilder(
+      builder: (context, setState) {
+        // تحديث الحالة دورياً
+        Future.delayed(Duration(seconds: 2), () {
+          if (mounted) {
+            setState(() {});
           }
         });
-        
-        // إظهار مساحة صغيرة أثناء التحميل
-        return SizedBox(
-          height: 50,
-          child: Center(
-            child: Text(
-              "جاري تحميل الإعلان...",
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+
+        if (_adManager.isBannerAdLoaded && _adManager.bannerAd != null) {
+          // عرض الإعلان الذي تم تحميله بنجاح
+          return Container(
+            alignment: Alignment.center,
+            width: _adManager.bannerAd!.size.width.toDouble(),
+            height: _adManager.bannerAd!.size.height.toDouble(),
+            margin: EdgeInsets.symmetric(vertical: 10),
+            child: AdWidget(ad: _adManager.bannerAd!),
+          );
+        } else {
+          // إذا فشل تحميل الإعلان
+          if (!_adManager.isBannerAdLoaded) {
+            // إعادة محاولة التحميل
+            Future.delayed(Duration(seconds: 5), () {
+              _adManager.loadBannerAd();
+              if (mounted) setState(() {});
+            });
+          }
+
+          // عرض مساحة احتياطية بدلاً من الإعلان
+          return Container(
+            height: 50,
+            child: Center(
+              child: Text(
+                "جاري تحميل الإعلان...",
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
             ),
-          ),
-        );
-      }
-    },
-  );
-}
+          );
+        }
+      },
+    );
+  }
 
   Widget _buildMainContent() {
     return Column(
@@ -328,11 +337,11 @@ class _HomeScreenState extends State<HomeScreen>
           secondaryColor: secondaryColor,
           logoIconData: icon,
           onPressed: () async {
-            bool shown =
-                await _adManager.showInterstitialAd(); // انتظار نتيجة العرض
-            if (shown) {
-              _launchURL(url);
-            }
+            // استخدام وضع القوة (force=true) لعرض الإعلان البيني فورًا
+            bool shown = await _adManager.showInterstitialAd(force: true);
+
+            // الانتقال للرابط في كل الأحوال
+            _launchURL(url);
           }),
     );
   }

@@ -56,27 +56,41 @@ class AdManager {
     print("📢 جاري تحميل إعلان البانر... معرف الإعلان: ${bannerAdUnitId}");
     
     _bannerAd = BannerAd(
-      adUnitId: bannerAdUnitId, // استخدام المعرف الصحيح
+      adUnitId: bannerAdUnitId,
       size: AdSize.banner,
       request: AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (ad) {
           print("✅ إعلان البانر تم تحميله بنجاح!");
-          _isBannerAdLoaded = true; // تحديث حالة التحميل
+          _isBannerAdLoaded = true;
         },
         onAdFailedToLoad: (ad, error) {
           print("❌ فشل تحميل إعلان البانر: ${error.message}");
           _isBannerAdLoaded = false;
           ad.dispose();
+          _bannerAd = null;
           
           // إعادة المحاولة بعد فترة
           print("⏱️ إعادة محاولة تحميل إعلان البانر بعد 30 ثانية...");
           Future.delayed(Duration(seconds: 30), loadBannerAd);
         },
+        onAdOpened: (ad) => print("💡 تم فتح إعلان البانر"),
+        onAdClosed: (ad) => print("🚪 تم إغلاق إعلان البانر"),
+        onAdImpression: (ad) => print("👁️ تم مشاهدة إعلان البانر"),
+        onAdClicked: (ad) => print("🖱️ تم النقر على إعلان البانر"),
       ),
     );
 
-    _bannerAd!.load();
+    try {
+      _bannerAd!.load();
+    } catch (e) {
+      print("❌ خطأ أثناء تحميل إعلان البانر: $e");
+      _isBannerAdLoaded = false;
+      _bannerAd = null;
+      
+      // إعادة المحاولة بعد فترة
+      Future.delayed(Duration(seconds: 60), loadBannerAd);
+    }
   }
   
   // تحميل الإعلان البيني مع آلية إعادة المحاولة
@@ -113,6 +127,9 @@ class AdManager {
               _interstitialAd = null;
               loadInterstitialAd();
             },
+            onAdShowedFullScreenContent: (ad) => print("📺 تم عرض الإعلان البيني بنجاح!"),
+            onAdClicked: (ad) => print("🖱️ تم النقر على الإعلان البيني"),
+            onAdImpression: (ad) => print("👁️ تم تسجيل مشاهدة للإعلان البيني"),
           );
         },
         onAdFailedToLoad: (LoadAdError error) {
@@ -134,52 +151,55 @@ class AdManager {
   }
   
   // عرض الإعلان البيني مع منع التكرار السريع
-  Future<bool> showInterstitialAd() async {
-    // التحقق من جاهزية الإعلان البيني
-    if (_interstitialAd == null || !_isInterstitialAdReady) {
-      print("⚠️ الإعلان البيني غير جاهز بعد.");
-      // إعادة تحميل الإعلان إذا كان غير متوفر
-      loadInterstitialAd();
-      return false;
-    }
+ // عرض الإعلان البيني بدون قيود زمنية
+// عرض الإعلان البيني مع خيار تجاوز فترة الانتظار
+Future<bool> showInterstitialAd({bool force = false}) async {
+  // التحقق من جاهزية الإعلان البيني
+  if (_interstitialAd == null || !_isInterstitialAdReady) {
+    print("⚠️ الإعلان البيني غير جاهز بعد.");
+    // إعادة تحميل الإعلان إذا كان غير متوفر
+    loadInterstitialAd();
+    return false;
+  }
 
-    // التحقق من الفاصل الزمني منذ آخر عرض
-    if (_lastInterstitialShownTime != null) {
-      final difference = DateTime.now().difference(_lastInterstitialShownTime!);
-      if (difference.inSeconds < 60) { // منع العرض أكثر من مرة في الدقيقة الواحدة
-        print("⏱️ لم يمر وقت كافٍ منذ آخر عرض للإعلان البيني (${difference.inSeconds} ثانية).");
-        return false;
-      }
-    }
-
-    try {
-      await Future.delayed(Duration(seconds: 1)); // تأخير صغير قبل العرض
-      print("🎯 جاري عرض الإعلان البيني...");
-      
-      // الاحتفاظ بنسخة مؤقتة من الإعلان
-      final InterstitialAd adToShow = _interstitialAd!;
-      
-      // إعادة تعيين المتغيرات
-      _interstitialAd = null;
-      _isInterstitialAdReady = false;
-      
-      // عرض الإعلان
-      adToShow.show();
-      
-      // تحديث وقت آخر عرض
-      _lastInterstitialShownTime = DateTime.now();
-      
-      // تحميل إعلان جديد
-      loadInterstitialAd();
-      
-      return true;
-    } catch (e) {
-      print("❌ خطأ أثناء عرض الإعلان البيني: $e");
-      _isInterstitialAdReady = false;
-      loadInterstitialAd();
+  // التحقق من الفاصل الزمني منذ آخر عرض (فقط إذا كان وضع القوة غير مفعّل)
+  if (!force && _lastInterstitialShownTime != null) {
+    final difference = DateTime.now().difference(_lastInterstitialShownTime!);
+    if (difference.inSeconds < 60) { // منع العرض أكثر من مرة في الدقيقة الواحدة
+      print("⏱️ لم يمر وقت كافٍ منذ آخر عرض للإعلان البيني (${difference.inSeconds} ثانية).");
+      print("⚡ تجاوز هذا التحقق بواسطة وضع القوة: force=true");
       return false;
     }
   }
+
+  try {
+    await Future.delayed(Duration(milliseconds: 300)); // تأخير صغير جداً
+    print("🎯 جاري عرض الإعلان البيني...");
+    
+    // الاحتفاظ بنسخة مؤقتة من الإعلان
+    final InterstitialAd adToShow = _interstitialAd!;
+    
+    // إعادة تعيين المتغيرات
+    _interstitialAd = null;
+    _isInterstitialAdReady = false;
+    
+    // عرض الإعلان
+    adToShow.show();
+    
+    // تحديث وقت آخر عرض
+    _lastInterstitialShownTime = DateTime.now();
+    
+    // تحميل إعلان جديد فورًا
+    loadInterstitialAd();
+    
+    return true;
+  } catch (e) {
+    print("❌ خطأ أثناء عرض الإعلان البيني: $e");
+    _isInterstitialAdReady = false;
+    loadInterstitialAd();
+    return false;
+  }
+}
   
   // توقيف عرض الإعلانات
   void dispose() {
