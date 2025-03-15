@@ -1,24 +1,21 @@
+// lib/views/screens/home_screen.dart
 import 'package:flutter/material.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:omra/page/widgets/ad_manager.dart';
+import 'package:omra/page/models/home_view_model.dart';
+import 'package:omra/page/widgets/banner_ad_widget.dart';
 import 'package:omra/page/widgets/drawer_item.dart';
-import 'package:omra/page/widgets/reservation_button.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:omra/page/widgets/reservation_botton.dart';
+
 
 class HomeScreen extends StatefulWidget {
   @override
   _HomeScreenState createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late AnimationController _animationController;
+  final HomeViewModel _viewModel = HomeViewModel();
 
-  // مدير الإعلانات
-  final AdManager _adManager = AdManager();
-
-  // في ملف home_screen.dart
   @override
   void initState() {
     super.initState();
@@ -29,27 +26,20 @@ class _HomeScreenState extends State<HomeScreen>
       duration: Duration(seconds: 1),
     )..forward();
 
-    // تعيين وضع الاختبار
-    AdManager.setTestMode(true); // تعيين true للاختبار و false للإنتاج
+    _viewModel.initialize();
 
-    // تهيئة الإعلانات
-    _adManager.initialize();
-
-    // إعادة محاولة تحميل الإعلانات
     Future.delayed(Duration(seconds: 3), () {
-      if (!_adManager.isBannerAdLoaded) {
-        _adManager.loadBannerAd();
+      if (!_viewModel.adViewModel.isBannerAdLoaded) {
+        _viewModel.adViewModel.loadBannerAd();
       }
     });
 
-    // إعادة بناء الواجهة لتحديث عرض الإعلانات
     Future.delayed(Duration(seconds: 2), () {
       if (mounted) setState(() {});
     });
 
-    // عرض الإعلان البيني بعد فترة من بدء التطبيق
     Future.delayed(Duration(seconds: 5), () {
-      _adManager.showInterstitialAd();
+      _viewModel.adViewModel.showInterstitialAd();
     });
   }
 
@@ -57,25 +47,14 @@ class _HomeScreenState extends State<HomeScreen>
   void dispose() {
     print("🛑 HomeScreen Disposed!");
     _animationController.dispose();
-    _adManager.dispose();
+    _viewModel.dispose();
     super.dispose();
-  }
-
-  // فتح رابط خارجي
-  Future<void> _launchURL(String url) async {
-    final Uri uri = Uri.parse(url);
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('لا يمكن فتح الرابط: $url')),
-      );
-    }
   }
 
   void _openDrawer() {
     _scaffoldKey.currentState?.openDrawer();
   }
 
-  // ========== App UI Building ==========
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -87,7 +66,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // ========== UI Components ==========
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: Colors.transparent,
@@ -113,7 +91,6 @@ class _HomeScreenState extends State<HomeScreen>
       child: SafeArea(
         child: Column(
           children: [
-            // Main content
             Expanded(
               child: SingleChildScrollView(
                 child: Padding(
@@ -122,98 +99,66 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
             ),
-
-            // Banner ad at the bottom
-            _buildBannerAdContainer(),
+            BannerAdWidget(adViewModel: _viewModel.adViewModel),
           ],
         ),
       ),
     );
   }
 
-  // في ملف home_screen.dart
-
-  Widget _buildBannerAdContainer() {
-    return StatefulBuilder(
-      builder: (context, setState) {
-        // تحديث الحالة دورياً
-        Future.delayed(Duration(seconds: 2), () {
-          if (mounted) {
-            setState(() {});
-          }
-        });
-
-        if (_adManager.isBannerAdLoaded && _adManager.bannerAd != null) {
-          // عرض الإعلان الذي تم تحميله بنجاح
-          return Container(
-            alignment: Alignment.center,
-            width: _adManager.bannerAd!.size.width.toDouble(),
-            height: _adManager.bannerAd!.size.height.toDouble(),
-            margin: EdgeInsets.symmetric(vertical: 10),
-            child: AdWidget(ad: _adManager.bannerAd!),
-          );
-        } else {
-          // إذا فشل تحميل الإعلان
-          if (!_adManager.isBannerAdLoaded) {
-            // إعادة محاولة التحميل
-            Future.delayed(Duration(seconds: 5), () {
-              _adManager.loadBannerAd();
-              if (mounted) setState(() {});
-            });
-          }
-
-          // عرض مساحة احتياطية بدلاً من الإعلان
-          return Container(
-            height: 50,
-            child: Center(
-              child: Text(
-                "جاري تحميل الإعلان...",
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ),
-          );
-        }
-      },
+  Widget _buildMainContent() {
+    final reservationOptions = _viewModel.getReservationOptions();
+    
+    return Column(
+      children: reservationOptions.map((option) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 20),
+          child: _buildAnimatedReservationButton(
+            option.arabicTitle,
+            option.englishTitle,
+            option.primaryColor,
+            option.secondaryColor,
+            getIconForName(option.iconName),
+            option.url,
+          ),
+        );
+      }).toList(),
     );
   }
 
-  Widget _buildMainContent() {
-    return Column(
-      children: [
-        SizedBox(height: 20),
-        _buildReservationButton(
-            'حجز الروضة',
-            'Rawda Reservation',
-            Color(0xFF1E8449),
-            Color(0xFF27AE60),
-            Icons.mosque,
-            'http://www.almaehadalealibialjamiea.com/2021/04/blog-post_81.html'),
-        SizedBox(height: 20),
-        _buildReservationButton(
-            'حجز العمرة',
-            'Umrah Reservation',
-            Color(0xFFD35400),
-            Color(0xFFE67E22),
-            Icons.account_balance,
-            'http://www.almaehadalealibialjamiea.com/2021/01/blog-post_75.html'),
-        SizedBox(height: 20),
-        _buildReservationButton(
-            'حجز الحج',
-            'Hajj Reservation',
-            Color(0xFF0E6655),
-            Color(0xFF16A085),
-            Icons.holiday_village,
-            'http://www.almaehadalealibialjamiea.com/2022/01/2022-30.html'),
-        SizedBox(height: 20),
-        _buildReservationButton(
-            'كيفية الحجز',
-            'How to Book',
-            Color(0xFF4A235A),
-            Color(0xFF7D3C98),
-            Icons.help_outline,
-            'http://www.almaehadalealibialjamiea.com/2022/01/2022-30.html'),
-        SizedBox(height: 20),
-      ],
+  IconData getIconForName(String iconName) {
+    switch (iconName) {
+      case 'mosque': return Icons.mosque;
+      case 'account_balance': return Icons.account_balance;
+      case 'holiday_village': return Icons.holiday_village;
+      case 'help_outline': return Icons.help_outline;
+      default: return Icons.error;
+    }
+  }
+
+  Widget _buildAnimatedReservationButton(
+    String arabicText, 
+    String englishText,
+    Color color, 
+    Color secondaryColor, 
+    IconData icon, 
+    String url
+  ) {
+    return SlideTransition(
+      position: Tween<Offset>(begin: Offset(-1, 0), end: Offset.zero).animate(
+        CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+      ),
+      child: ReservationButton(
+        arabicText: arabicText,
+        englishText: englishText,
+        color: color,
+        secondaryColor: secondaryColor,
+        logoIconData: icon,
+        onPressed: () async {
+          await _viewModel.adViewModel.showInterstitialAd(force: true);
+          _viewModel.launchUrl(url, context);
+        },
+      ),
     );
   }
 
@@ -267,82 +212,23 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildDrawerItems() {
+    final reservationOptions = _viewModel.getReservationOptions();
+    
     return Expanded(
       child: ListView(
         padding: EdgeInsets.zero,
-        children: <Widget>[
-          DrawerItem(
-            text: 'حجز الروضة',
-            icon: Icons.mosque,
-            url:
-                'http://www.almaehadalealibialjamiea.com/2021/04/blog-post_81.html',
-            onTap: () {
-              // عرض الإعلان قبل فتح الرابط
-              _adManager.showInterstitialAd().then((shown) {
-                _launchURL(
-                    'http://www.almaehadalealibialjamiea.com/2021/04/blog-post_81.html');
-              });
+        children: reservationOptions.map((option) {
+          return DrawerItem(
+            text: option.arabicTitle,
+            icon: getIconForName(option.iconName),
+            onTap: () async {
+              Navigator.pop(context);
+              await _viewModel.adViewModel.showInterstitialAd();
+              _viewModel.launchUrl(option.url, context);
             },
-          ),
-          DrawerItem(
-            text: 'حجز العمرة',
-            icon: Icons.account_balance,
-            url:
-                'http://www.almaehadalealibialjamiea.com/2021/01/blog-post_75.html',
-            // تكملة كود home_screen.dart
-            onTap: () {
-              _adManager.showInterstitialAd().then((shown) {
-                _launchURL(
-                    'http://www.almaehadalealibialjamiea.com/2021/01/blog-post_75.html');
-              });
-            },
-          ),
-          DrawerItem(
-            text: ' حجز الحج',
-            icon: Icons.holiday_village,
-            url: 'http://www.almaehadalealibialjamiea.com/2022/01/2022-30.html',
-            onTap: () {
-              _adManager.showInterstitialAd().then((shown) {
-                _launchURL(
-                    'http://www.almaehadalealibialjamiea.com/2022/01/2022-30.html');
-              });
-            },
-          ),
-          DrawerItem(
-            text: ' كيفية الحجز',
-            icon: Icons.book,
-            url: 'http://www.almaehadalealibialjamiea.com/2022/01/2022-30.html',
-            onTap: () {
-              _adManager.showInterstitialAd().then((shown) {
-                _launchURL(
-                    'http://www.almaehadalealibialjamiea.com/2022/01/2022-30.html');
-              });
-            },
-          ),
-        ],
+          );
+        }).toList(),
       ),
-    );
-  }
-
-  Widget _buildReservationButton(String arabicText, String englishText,
-      Color color, Color secondaryColor, IconData icon, String url) {
-    return SlideTransition(
-      position: Tween<Offset>(begin: Offset(-1, 0), end: Offset.zero).animate(
-        CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
-      ),
-      child: ReservationButton(
-          arabicText: arabicText,
-          englishText: englishText,
-          color: color,
-          secondaryColor: secondaryColor,
-          logoIconData: icon,
-          onPressed: () async {
-            // استخدام وضع القوة (force=true) لعرض الإعلان البيني فورًا
-            bool shown = await _adManager.showInterstitialAd(force: true);
-
-            // الانتقال للرابط في كل الأحوال
-            _launchURL(url);
-          }),
     );
   }
 }

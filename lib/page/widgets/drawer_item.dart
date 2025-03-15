@@ -1,19 +1,16 @@
-// drawer_item.dart
+// lib/views/widgets/drawer_item.dart
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class DrawerItem extends StatelessWidget {
   final String text;
   final IconData icon;
-  final String url;
-  final VoidCallback? onTap;
+  final VoidCallback onTap;
 
   const DrawerItem({
     Key? key,
     required this.text,
     required this.icon,
-    required this.url,
-    this.onTap,
+    required this.onTap,
   }) : super(key: key);
 
   @override
@@ -34,16 +31,7 @@ class DrawerItem extends StatelessWidget {
           ),
           textAlign: TextAlign.right,
         ),
-        onTap: onTap ?? () async {
-          Navigator.pop(context);
-          
-          final Uri uri = Uri.parse(url);
-          if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('لا يمكن فتح الرابط: $url')),
-            );
-          }
-        },
+        onTap: onTap,
       ),
     );
   }

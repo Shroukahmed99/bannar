@@ -1,3 +1,4 @@
+// lib/views/widgets/reservation_button.dart
 import 'package:flutter/material.dart';
 
 class ReservationButton extends StatelessWidget {
@@ -117,21 +118,13 @@ class ReservationButton extends StatelessWidget {
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.9),
                             fontSize: 16,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                Container(
-                  margin: EdgeInsets.only(right: 10),
-                  child: Icon(
-                    Icons.arrow_forward_ios,
-                    color: Colors.white.withOpacity(0.7),
-                    size: 20,
-                  ),
-                ),
-                SizedBox(width: 20),
               ],
             ),
           ],
